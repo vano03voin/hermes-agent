@@ -264,6 +264,8 @@ def _ws_auth_reason(ws: "WebSocket") -> tuple[Optional[str], str]:
     ``_SESSION_TOKEN`` is rejected in gated mode: a leaked ``_SESSION_TOKEN``
     must not grant access.
     """
+    if getattr(ws.state, "tenant_principal", None) is not None:
+        return None, "tenant"
     from hermes_cli.web_server import _SESSION_TOKEN, app
     auth_required = bool(getattr(app.state, "auth_required", False))
     if auth_required:

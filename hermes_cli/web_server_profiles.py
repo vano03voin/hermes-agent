@@ -189,6 +189,10 @@ def _fallback_profile_dicts(profiles_mod) -> List[Dict[str, Any]]:
 
 def _resolve_profile_dir(name: str) -> Path:
     """Validate ``name`` and resolve to its directory or raise an HTTPException."""
+    from hermes_cli.tenant_context import current_tenant, pin_profile
+    name = pin_profile(name)
+    if tenant := current_tenant():
+        return tenant.profile_home
     from hermes_cli import profiles as profiles_mod
     try:
         profiles_mod.validate_profile_name(name)
@@ -291,6 +295,8 @@ def _config_profile_scope(profile: Optional[str]):
     Explicit names resolving to the process home retain current-profile semantics.
     Still enter the requested home so a nested scope cannot retain another profile.
     """
+    from hermes_cli.tenant_context import pin_profile
+    profile = pin_profile(profile)
     from agent.secret_scope import build_profile_secret_scope, reset_secret_scope, set_secret_scope
     from hermes_cli.env_loader import hydrate_profile_secret_sources
     from tui_gateway.launch_profile_policy import activate_multi_profile_hosting, launch_secret_scope

@@ -22,6 +22,9 @@ class ManagedFilesPolicy:
 
 
 def _resolve_fs_candidate(raw: str, *, cwd: str | None = None) -> Path:
+    from hermes_cli.tenant_context import current_tenant, tenant_path
+    if current_tenant():
+        return tenant_path(Path(raw))
     candidate = Path(raw).expanduser()
     if not candidate.is_absolute():
         base = Path(cwd).expanduser() if cwd is not None else Path.cwd()
@@ -61,7 +64,8 @@ def _fs_path(raw_path: str, *, cwd: str | None = None, decode_fallback: bool = T
             decoded = _resolve_fs_candidate(urllib.parse.unquote(raw), cwd=cwd)
             if decoded.exists():
                 candidate = decoded
-        return candidate
+        from hermes_cli.tenant_context import tenant_path
+        return tenant_path(candidate)
     except (OSError, RuntimeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid path")
 
@@ -141,6 +145,12 @@ def _dashboard_local_update_managed_externally() -> bool:
 
 
 def _managed_files_policy(request: Request, *, create_root: bool = True) -> ManagedFilesPolicy:
+    from hermes_cli.tenant_context import current_tenant, tenant_path
+    if tenant := current_tenant():
+        root = tenant_path(tenant.profile_home / "workspace")
+        if create_root:
+            root.mkdir(parents=True, exist_ok=True)
+        return ManagedFilesPolicy(default_path=root, locked_root=root, can_change_path=False)
     raw_forced_root = os.environ.get(_MANAGED_FILES_ROOT_ENV, "").strip()
     if raw_forced_root:
         root = _ensure_managed_root(raw_forced_root) if create_root else _canonical_path(Path(raw_forced_root))
@@ -180,6 +190,9 @@ def _resolve_managed_path(
     if ".." in candidate.parts:
         raise HTTPException(status_code=400, detail="Path cannot contain '..'")
 
+    from hermes_cli.tenant_context import tenant_path
+    candidate = tenant_path(candidate)
+
     if for_write and not candidate.exists():
         parent = _canonical_path(candidate.parent)
         resolved = parent / candidate.name
@@ -189,6 +202,7 @@ def _resolve_managed_path(
     if root is not None and not _path_is_under(root, resolved):
         raise HTTPException(status_code=403, detail="Path outside managed files root")
 
+    resolved = tenant_path(resolved)
     return policy, resolved, str(resolved)
 
 

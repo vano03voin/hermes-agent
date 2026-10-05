@@ -152,7 +152,9 @@ def mount_spa(application: FastAPI):
             # Partial build / wiped dist / permissions: same JSON 404 as a fully-missing dist.
             return JSONResponse({"error": "Frontend not built. Run: cd web && npm run build"}, status_code=404)
         chat_js = "true" if _DASHBOARD_EMBEDDED_CHAT_ENABLED else "false"
-        gated = bool(getattr(app.state, "auth_required", False))
+        from hermes_cli.tenant_context import authenticated_principal, current_tenant
+        tenant = current_tenant()
+        gated = bool(getattr(app.state, "auth_required", False) or authenticated_principal())
         token_js = "" if gated else f'window.__HERMES_SESSION_TOKEN__="{_server()._SESSION_TOKEN}";'
         # Launcher-preselected profile (``--open-profile``): the SPA's fallback scope when the URL
         # omits ``?profile=`` (#73085). ``</`` escaped so a hostile name cannot close the script tag.
@@ -163,6 +165,9 @@ def mount_spa(application: FastAPI):
         # as the host serves more than one, and the switcher shows the same profile it writes.
         from hermes_cli.web_server_profiles import serving_profile_name as _serving_profile_name
         serving_profile_js = json.dumps(_serving_profile_name()).replace("</", "<\\/")
+        tenant_profile_js = json.dumps(tenant.profile if tenant else "")
+        if tenant:
+            initial_profile_js = serving_profile_js = tenant_profile_js
         bootstrap_script = (
             f"<script>{token_js}"
             f"window.__HERMES_DASHBOARD_EMBEDDED_CHAT__={chat_js};"
@@ -170,6 +175,7 @@ def mount_spa(application: FastAPI):
             f"window.__HERMES_AUTH_REQUIRED__={'true' if gated else 'false'};"
             f"window.__HERMES_INITIAL_PROFILE__={initial_profile_js};"
             f"window.__HERMES_DASHBOARD_PROFILE__={serving_profile_js};"
+            f"window.__HERMES_TENANT_PROFILE__={tenant_profile_js};"
             f"</script>"
         )
         if prefix:

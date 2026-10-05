@@ -30,7 +30,7 @@ def _aux(timeout, *, reasoning_effort=True, **extra):
     return d
 
 
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG = {"backend_retirement_control": {},  # Managed-only process control; profile values ignored.
     "model": "",
     "providers": {},
     "fallback_providers": [],

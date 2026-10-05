@@ -83,6 +83,9 @@ def _validate_dashboard_cron_context_from(refs: Optional[List[str]], profile_nam
 def _cron_profile_dicts() -> List[Dict[str, Any]]:
     """Minimal profile records (callers only consume ``name``); avoids ``list_profiles()``,
     whose config parsing, gateway probes and skill counts are GIL pressure on large pools."""
+    from hermes_cli.tenant_context import current_tenant
+    if tenant := current_tenant():
+        return [{"name": tenant.profile, "path": str(tenant.profile_home), "is_default": False}]
     from hermes_cli.web_server_profiles import _fallback_profile_dicts
     from hermes_cli import profiles as profiles_mod
     try:
@@ -112,6 +115,10 @@ def _cron_default_profile() -> str:
 
 def _cron_profile_home(profile: Optional[str]) -> Tuple[str, Path]:
     """Resolve a profile query value to (profile_name, HERMES_HOME)."""
+    from hermes_cli.tenant_context import current_tenant, pin_profile
+    profile = pin_profile(profile)
+    if tenant := current_tenant():
+        return tenant.profile, tenant.profile_home
     from hermes_cli import profiles as profiles_mod
     raw = (profile or _cron_default_profile()).strip() or "default"
     try:

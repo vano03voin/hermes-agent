@@ -271,6 +271,8 @@ def _write_or_exit(payload: dict, reason: str) -> None:
 
 
 def main():
+    from hermes_cli.backend_retirement_control import start_managed_control
+    start_managed_control()
     # stdout is this process's JSON-RPC client channel: peer-less global broadcasts belong on it.
     server._stdio_is_rpc_channel = True
     try:

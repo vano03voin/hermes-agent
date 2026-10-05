@@ -29,6 +29,12 @@ def resolve_chat_cwd(raw: Optional[str]) -> Optional[str]:
     A dead or relative path fails closed (400) instead of silently falling back to the launch
     dir — the user picked a workspace and would otherwise get a session in the wrong place.
     """
+    from hermes_cli.tenant_context import current_tenant, tenant_path
+    if tenant := current_tenant():
+        target = tenant_path(Path(raw) if raw else tenant.profile_home / "workspace")
+        if not target.is_dir():
+            raise HTTPException(status_code=400, detail="Working directory is unavailable")
+        return str(target)
     text = (raw or "").strip()
     if not text:
         return None
@@ -39,6 +45,10 @@ def resolve_chat_cwd(raw: Optional[str]) -> Optional[str]:
 
 
 def _collect_workspaces(profile: Optional[str], scan: bool) -> dict:
+    from hermes_cli.tenant_context import current_tenant
+    if tenant := current_tenant():
+        return {"projects": [], "repos": [], "default_cwd": str(tenant.profile_home / "workspace"),
+                "home": str(tenant.profile_home / "workspace"), "scan_enabled": False}
     # The dashboard hosts the in-process gateway (``web_server`` imports ``tui_gateway.server``
     # at startup), so the sidebar's repo-discovery helpers are already bound there.
     import tui_gateway.server as gateway

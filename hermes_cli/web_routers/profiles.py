@@ -216,6 +216,9 @@ def _profile_targets(log_label: str) -> List[Tuple[str, Path]]:
     ``profiles_to_serve`` (pure directory read) instead of ``list_profiles``, which parses
     config/meta and probes gateways per profile — every caller here is a polled sidebar
     fan-out that only needs name/path (#114041)."""
+    from hermes_cli.tenant_context import current_tenant
+    if tenant := current_tenant():
+        return [(tenant.profile, tenant.profile_home)]
     from hermes_cli import profiles as profiles_mod
     try:
         targets = list(profiles_mod.profiles_to_serve(multiplex=True, include_standalone=True, include_parked=True))
@@ -407,13 +410,16 @@ def _sidebar_singleflight_cache(func):
 
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
+        from hermes_cli.tenant_context import current_tenant
         ttl = _SIDEBAR_CACHE_TTL_SECONDS
         if ttl <= 0:
             return func(*args, **kwargs)
 
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
-        key = tuple(bound.arguments.items())
+        tenant = current_tenant()
+        owner = (tenant.profile, str(tenant.profile_home)) if tenant else None
+        key = (owner, tuple(bound.arguments.items()))
         cached = _lookup(key)
         if cached is not miss:
             return cached
@@ -797,6 +803,12 @@ def _read_profiles():
 
 @router.get("/api/profiles")
 async def list_profiles_endpoint():
+    from hermes_cli.tenant_context import current_tenant
+    if tenant := current_tenant():
+        # Never hit the cross-profile coalescing cache for a tenant request.
+        return {"profiles": [{"name": tenant.profile, "path": str(tenant.profile_home),
+                              "display_name": tenant.display_name, "is_default": False,
+                              "is_active": True, "has_env": False, "skill_count": 0}]}
     return await _read_profiles()
 
 
@@ -877,6 +889,9 @@ async def create_profile_endpoint(body: ProfileCreate):
 async def get_active_profile_endpoint():
     """``active`` is the sticky default written by ``hermes profile use`` (what new CLI
     invocations pick up); ``current`` is the profile this running dashboard is scoped to."""
+    from hermes_cli.tenant_context import current_tenant
+    if tenant := current_tenant():
+        return {"active": tenant.profile, "current": tenant.profile}
     from hermes_cli import profiles as profiles_mod
 
     def _run():
@@ -990,7 +1005,9 @@ async def delete_profile_endpoint(name: str):
 
 @router.get("/api/profiles/{name}/soul")
 async def get_profile_soul(name: str):
-    soul_path = _resolve_profile_dir(name) / "SOUL.md"
+    from hermes_cli.tenant_context import tenant_path
+    profile_dir = _resolve_profile_dir(name)
+    soul_path = tenant_path(profile_dir / "SOUL.md", roots=(profile_dir,))
     def _run():
         # Probe and read in one hop (two round-trips would widen the check/read window).
         if not soul_path.exists():
@@ -1005,7 +1022,9 @@ async def get_profile_soul(name: str):
 
 @router.put("/api/profiles/{name}/soul")
 async def update_profile_soul(name: str, body: ProfileSoulUpdate):
-    soul_path = _resolve_profile_dir(name) / "SOUL.md"
+    from hermes_cli.tenant_context import tenant_path
+    profile_dir = _resolve_profile_dir(name)
+    soul_path = tenant_path(profile_dir / "SOUL.md", roots=(profile_dir,))
 
     def _run():
         from utils import atomic_write_text

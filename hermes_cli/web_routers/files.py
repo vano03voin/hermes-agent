@@ -233,6 +233,9 @@ def _fs_find_git_root(start: Path) -> str | None:
 
 
 def _fs_default_cwd() -> str:
+    from hermes_cli.tenant_context import current_tenant
+    if tenant := current_tenant():
+        return str(tenant.profile_home / "workspace")
     cfg_terminal = load_config().get("terminal") or {}
     raw = str(cfg_terminal.get("cwd") or os.environ.get("TERMINAL_CWD") or "").strip()
     if raw and raw not in {".", "auto", "cwd"}:
@@ -260,6 +263,9 @@ def _fs_git_branch(cwd: str) -> str:
 
 
 def _fs_backend(profile: Optional[str] = None):
+    from hermes_cli.tenant_context import current_tenant
+    if current_tenant():
+        return None
     """Return the profile's SSH workspace adapter, or None for host-local FS."""
     from hermes_cli.ssh_workspace_fs import get_ssh_workspace_fs
 

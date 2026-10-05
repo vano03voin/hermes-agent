@@ -131,6 +131,9 @@ def _plugin_activated(plugin: dict, enabled_set: set, disabled_set: set) -> bool
 @router.get("/api/dashboard/plugins")
 async def get_dashboard_plugins(profile: Optional[str] = None):
     """Return discovered dashboard plugins (excludes user-hidden and non-enabled ones)."""
+    from hermes_cli.tenant_context import current_tenant
+    if current_tenant():
+        return []
     def _run():
         plugins = _get_dashboard_plugins()
         hidden: list = cfg_get(load_config(), "dashboard", "hidden_plugins", default=[]) or []

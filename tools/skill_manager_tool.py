@@ -199,6 +199,10 @@ def _description_preview(content: str) -> str:
 
 def _resolve_skill_dir(name: str, category: str = None) -> Path:
     """New-skill dir; honors ``skills.create_dir`` (e.g. a shared fleet dir)."""
+    from hermes_cli.tenant_context import current_tenant, tenant_path
+    if tenant := current_tenant():
+        root = tenant.profile_home / "skills"
+        return tenant_path(root / (category or "") / name, roots=(root,))
     base = _skills_dir()
     try:
         from agent.skill_utils import get_skill_create_dir
@@ -222,6 +226,9 @@ def _find_skill(name: str) -> Optional[Dict[str, Any]]:
     categorized relative path (``mlops/axolotl``) — the two forms skill_view resolves. The
     categorized form matches RELATIVE to the local root only (relative_to raises for external dirs)."""
     from agent.skill_utils import get_all_skills_dirs
+    from hermes_cli.tenant_context import current_tenant, tenant_path
+    tenant = current_tenant()
+    roots = [tenant.profile_home / "skills"] if tenant else get_all_skills_dirs()
     local_root = None
     if "/" in name or "\\" in name:
         try:
@@ -231,10 +238,12 @@ def _find_skill(name: str) -> Optional[Dict[str, Any]]:
                 "skills dir resolve failed; categorized lookups fall back to the unresolved path",
                 exc_info=True)
             local_root = _skills_dir()
-    for skills_dir in get_all_skills_dirs():
+    for skills_dir in roots:
         if not skills_dir.exists():
             continue
         for skill_dir in _iter_skill_dirs(skills_dir):
+            if tenant:
+                tenant_path(skill_dir / "SKILL.md", roots=(tenant.profile_home / "skills",))
             if skill_dir.name == name:
                 return {"path": skill_dir}
             if local_root is not None:
@@ -248,6 +257,9 @@ def _find_skill(name: str) -> Optional[Dict[str, Any]]:
 def _find_skill_in_other_profiles(name: str) -> List[Tuple[str, Path]]:
     """``(profile, skill_dir)`` pairs for OTHER profiles holding ``name`` (so the not-found
     error can explain a wrong-profile mistake). Fail-quiet."""
+    from hermes_cli.tenant_context import current_tenant
+    if current_tenant():
+        return []
     matches: List[Tuple[str, Path]] = []
     try:
         from hermes_constants import get_default_hermes_root

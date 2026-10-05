@@ -519,6 +519,9 @@ def _list_cron_job_runs_sync(job_id: str, profile: Optional[str] = None, limit: 
     scope so the dashboard's own zone/store is never borrowed cross-profile.
     """
     selected = _job_owner_profile(job_id, profile)
+    from hermes_cli.tenant_context import current_tenant
+    if selected is None and current_tenant() is not None:
+        raise _job_not_found()
     # job_id may be a human name; resolve to the canonical id used in run-session ids.
     canonical = job_id
     job = None

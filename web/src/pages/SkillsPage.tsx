@@ -30,6 +30,8 @@ import {
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { loadSkillsPageResources } from "@/lib/personal-skills";
+import { OperatorOnly } from "@/components/OperatorOnly";
 import type {
   SkillInfo,
   ToolsetInfo,
@@ -164,10 +166,7 @@ export default function SkillsPage() {
     // effect body stays lint-clean (react-hooks/set-state-in-effect). On a
     // profile switch the old list stays visible until the new one arrives.
     let cancelled = false;
-    Promise.all([
-      api.getSkills(selectedProfile || undefined),
-      api.getToolsets(selectedProfile || undefined),
-    ])
+    loadSkillsPageResources(selectedProfile || undefined)
       .then(([s, tsets]) => {
         if (cancelled) return;
         setSkills(s);
@@ -423,7 +422,7 @@ export default function SkillsPage() {
                     setSearch("");
                   }}
                 />
-                <PanelItem
+                <OperatorOnly><PanelItem
                   icon={Wrench}
                   label={`${t.skills.toolsets} (${toolsets.length})`}
                   active={view === "toolsets"}
@@ -440,7 +439,7 @@ export default function SkillsPage() {
                     setView("hub");
                     setSearch("");
                   }}
-                />
+                /></OperatorOnly>
               </div>
 
               {view === "skills" &&
@@ -572,9 +571,9 @@ export default function SkillsPage() {
                     </p>
                     {skills.length === 0 && (
                       <div className="flex flex-wrap justify-center gap-2">
-                        <Button size="sm" onClick={() => setView("hub")}>
+                        <OperatorOnly><Button size="sm" onClick={() => setView("hub")}>
                           {t.skills.browseHub ?? en.skills.browseHub}
-                        </Button>
+                        </Button></OperatorOnly>
                         <Button size="sm" outlined onClick={openCreateEditor}>
                           {t.skills.createSkill ?? en.skills.createSkill}
                         </Button>

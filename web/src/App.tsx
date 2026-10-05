@@ -83,6 +83,7 @@ const ConfigPage = lazy(() => import("@/pages/ConfigPage"));
 const DocsPage = lazy(() => import("@/pages/DocsPage"));
 const EnvPage = lazy(() => import("@/pages/EnvPage"));
 const FilesPage = lazy(() => import("@/pages/FilesPage"));
+const MemoryPage = lazy(() => import("@/pages/MemoryPage"));
 const SessionsPage = lazy(() => import("@/pages/SessionsPage"));
 const LogsPage = lazy(() => import("@/pages/LogsPage"));
 const AnalyticsPage = lazy(() => import("@/pages/AnalyticsPage"));
@@ -109,6 +110,8 @@ import { isDashboardEmbeddedChatEnabled } from "@/lib/dashboard-flags";
 import { latchChatActivation } from "@/lib/chat-activation";
 import { sharedGatewayProfiles, sharedGatewayRestartDescription } from "@/lib/shared-gateway";
 import { api } from "@/lib/api";
+import { tenantPageAllowed } from "@/lib/tenant-access";
+import { OperatorOnly } from "@/components/OperatorOnly";
 import type { StatusResponse, UpdateCheckResponse } from "@/lib/api";
 
 function RouteFallback({ label = "Loading…" }: { label?: string }) {
@@ -160,6 +163,7 @@ const BUILTIN_ROUTES_CORE: Record<string, ComponentType> = {
   "/": RootRedirect,
   "/sessions": SessionsPage,
   "/files": FilesPage,
+  "/memory": MemoryPage,
   "/analytics": AnalyticsPage,
   "/models": ModelsPage,
   "/logs": LogsPage,
@@ -194,6 +198,7 @@ const BUILTIN_NAV_REST: NavItem[] = [
     icon: MessageSquare,
   },
   { path: "/files", label: "Files", icon: FolderOpen },
+  { path: "/memory", label: "Memory", icon: BookOpen },
   {
     path: "/analytics",
     labelKey: "analytics",
@@ -372,6 +377,20 @@ function buildRoutes(
 
 const SIDEBAR_COLLAPSED_KEY = "hermes-sidebar-collapsed";
 
+function personalBuiltinNav(embeddedChat: boolean, showTokenAnalytics: boolean) {
+  const available = embeddedChat ? [CHAT_NAV_ITEM, ...BUILTIN_NAV_REST] : BUILTIN_NAV_REST;
+  return available.filter((item) => tenantPageAllowed(item.path)
+    && (showTokenAnalytics || item.path !== "/analytics"));
+}
+
+function OperatorBanners({ status }: { status: ReturnType<typeof useSidebarStatus> }) {
+  return <OperatorOnly>
+    <MemoryPressureBanner status={status} />
+    <MultiplexStandaloneBanner status={status} />
+    <SharedMetricsConsentBanner />
+  </OperatorOnly>;
+}
+
 export default function App() {
   const { t } = useI18n();
   const { pathname } = useLocation();
@@ -453,20 +472,13 @@ export default function App() {
 
   const builtinRoutes = useMemo(
     () => ({
-      ...BUILTIN_ROUTES_CORE,
+      ...Object.fromEntries(Object.entries(BUILTIN_ROUTES_CORE).filter(([path]) => tenantPageAllowed(path))),
       ...(embeddedChat ? { "/chat": ChatRouteSink } : {}),
     }),
     [embeddedChat],
   );
 
-  const builtinNav = useMemo(() => {
-    const base = embeddedChat
-      ? [CHAT_NAV_ITEM, ...BUILTIN_NAV_REST]
-      : BUILTIN_NAV_REST;
-    return showTokenAnalytics
-      ? base
-      : base.filter((n) => n.path !== "/analytics");
-  }, [embeddedChat, showTokenAnalytics]);
+  const builtinNav = useMemo(() => personalBuiltinNav(embeddedChat, showTokenAnalytics), [embeddedChat, showTokenAnalytics]);
 
   const sidebarNav = useMemo(
     () => partitionSidebarNav(builtinNav, manifests),
@@ -577,9 +589,7 @@ export default function App() {
       <div aria-hidden className="h-14 shrink-0 lg:hidden" />
       <PluginSlot name="header-banner" />
       <ProfileScopeBanner />
-      <MemoryPressureBanner status={sidebarStatus} />
-      <MultiplexStandaloneBanner status={sidebarStatus} />
-      <SharedMetricsConsentBanner />
+      <OperatorBanners status={sidebarStatus} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1">
@@ -652,7 +662,7 @@ export default function App() {
               </Button>
             </div>
 
-            <ProfileSwitcher collapsed={isDesktopCollapsed} />
+            <OperatorOnly><ProfileSwitcher collapsed={isDesktopCollapsed} /></OperatorOnly>
 
             <nav
               className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden border-t border-current/10 py-2"
@@ -704,12 +714,12 @@ export default function App() {
               )}
             </nav>
 
-            <SidebarSystemActions
+            <OperatorOnly><SidebarSystemActions
               collapsed={isDesktopCollapsed}
               onNavigate={closeMobile}
               status={sidebarStatus}
               tooltipWarmRef={tooltipWarmRef}
-            />
+            /></OperatorOnly>
 
             <div
               className={cn(

@@ -46,6 +46,7 @@ import { useI18n } from "@/i18n";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { cn, themedBody } from "@/lib/utils";
 import { errorMessage } from "@/lib/api-error";
+import { dashboardTenantProfile } from "@/lib/tenant-access";
 
 // Mirrors hermes_cli/profiles.py::_PROFILE_ID_RE so we can reject obviously
 // invalid names (uppercase, spaces, …) before round-tripping a doomed POST.
@@ -103,6 +104,7 @@ function ProfileActionsMenu({
   onRename,
   onSetActive,
 }: ProfileActionsMenuProps) {
+  const playerProfile = dashboardTenantProfile();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -148,7 +150,7 @@ function ProfileActionsMenu({
           role="menu"
           className="absolute right-0 top-full z-50 mt-1 min-w-[200px] border border-border bg-card shadow-lg"
         >
-          {!isActive && (
+          {!playerProfile && !isActive && (
             <button
               type="button"
               role="menuitem"
@@ -161,7 +163,7 @@ function ProfileActionsMenu({
             </button>
           )}
 
-          <button
+          {!playerProfile && <button
             type="button"
             role="menuitem"
             className={itemClass}
@@ -173,7 +175,7 @@ function ProfileActionsMenu({
               <Cpu className="h-4 w-4" />
             )}
             {labels.editModel}
-          </button>
+          </button>}
 
           <button
             type="button"
@@ -215,7 +217,7 @@ function ProfileActionsMenu({
             {labels.manageSkills}
           </button>
 
-          <button
+          {!playerProfile && <button
             type="button"
             role="menuitem"
             className={itemClass}
@@ -223,9 +225,9 @@ function ProfileActionsMenu({
           >
             <Terminal className="h-4 w-4" />
             {labels.openInTerminal}
-          </button>
+          </button>}
 
-          {!isDefault && (
+          {!playerProfile && !isDefault && (
             <button
               type="button"
               role="menuitem"
@@ -237,7 +239,7 @@ function ProfileActionsMenu({
             </button>
           )}
 
-          {!isDefault && (
+          {!playerProfile && !isDefault && (
             <button
               type="button"
               role="menuitem"
@@ -748,6 +750,10 @@ export default function ProfilesPage() {
 
   // Put "Build" (full builder) + "Create" (quick modal) buttons in header
   useLayoutEffect(() => {
+    if (dashboardTenantProfile()) {
+      setEnd(null);
+      return;
+    }
     setEnd(
       <div className="flex items-center gap-2">
         <Button
